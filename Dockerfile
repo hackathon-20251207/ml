@@ -14,6 +14,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 COPY app.py ./app.py
 
-EXPOSE 8080
+EXPOSE 8085
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8085"]
