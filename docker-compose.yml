@@ -15,11 +15,11 @@ services:
       NUM_FRAMES: ${NUM_FRAMES:-32}
       INPUT_SIZE: ${INPUT_SIZE:-224}
       HOST: ${HOST:-0.0.0.0}
-      PORT: ${PORT:-8080}
+      PORT: ${PORT:-8085}
       RELOAD: ${RELOAD:-false}
       USE_MOCK: ${USE_MOCK:-false}
     ports:
-      - "8080:8080"
+      - "8085:8085"
     volumes:
       - ./artifacts:/app/artifacts
     restart: unless-stopped
