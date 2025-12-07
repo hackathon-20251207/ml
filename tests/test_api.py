@@ -9,7 +9,7 @@ from PIL import Image
 import numpy as np
 
 
-API_URL = "http://localhost:8080"
+API_URL = "http://localhost:8085"
 FRAME_PATH = Path("tests/data/frame.jpg")
 VIDEO_CANDIDATES = [
     Path("tests/data/sample.mp4"),

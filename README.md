@@ -13,7 +13,7 @@ MODEL_KEY=mvit32-2.onnx
 CLASS_LIST_KEY=RSL_class_list.txt
 MODEL_PATH=artifacts/mvit32-2.onnx
 CLASS_LIST_PATH=artifacts/RSL_class_list.txt
-DEMO_API_URL=http://localhost:8080/process
+DEMO_API_URL=http://localhost:8085/process
 USE_MOCK=false
 S3_ENDPOINT_URL=<ваш S3 endpoint без /bucket в конце, для R2: https://38ae25cfcc902dddf384e6cbbc6f24e0.r2.cloudflarestorage.com>
 FORCE_DOWNLOAD=false
@@ -30,7 +30,7 @@ pip install -r requirements.txt
 
 3. Запусти API:
 ```
-uvicorn app:app --host 0.0.0.0 --port 8080
+uvicorn app:app --host 0.0.0.0 --port 8085
 ```
 
 ### Docker
@@ -46,7 +46,7 @@ Compose автоматически подхватывает `.env` в корне
 2. Подними API (локально или через Docker).
 3. Запусти `pytest -m integration`.
 
-Тесты шлют: (а) 32 одинаковых кадров из `frame.jpg`; (б) 32 кадров, равномерно выбранных из `sample.mp4`. Оба ждут непустой `text` от `http://localhost:8080/process`.
+Тесты шлют: (а) 32 одинаковых кадров из `frame.jpg`; (б) 32 кадров, равномерно выбранных из `sample.mp4`/`test.mp4`. Оба ждут непустой `text` от `http://localhost:8085/process`.
 
 ## Эндпоинты
 - `GET /health` → `"OK"`
