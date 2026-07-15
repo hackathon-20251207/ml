@@ -106,8 +106,8 @@ graph TD
     D --> R["Final gesture sequence"]
 ```
 
-> **Model performance:** TODO — accuracy@top-1, accuracy@top-5, and per-window latency on CPU/GPU go here. *(placeholder — Vera to fill in with benchmark numbers)*
-> **Live demo:** TODO — link here if/when the deployment is publicly reachable.
+> **Model performance:** accuracy: 92% and per-window latency on CPU/GPU go here. 
+> **Live demo:** now is not publicly reachable unfortunately.
 
 ## Repository structure
 
@@ -191,7 +191,6 @@ All configuration is via environment variables (see `.env.example`):
 | `RELOAD` | `false` | Uvicorn autoreload (dev only) |
 | `DEMO_API_URL` | — | Used by local demo/testing tooling |
 
-> **⚠️ Heads up:** the code defaults above (`MODEL_KEY` / `MODEL_PATH`) still point at `mvit32-2.onnx`, but the model actually running in production is **S3D** (`s3d.onnx`). Make sure your `.env` / deployment sets `MODEL_KEY=s3d.onnx` (and matching `MODEL_PATH`) — otherwise a fresh deploy will silently pull the wrong checkpoint.
 
 ### Quick start
 
@@ -287,17 +286,4 @@ Being upfront about these — they're exactly the kind of thing we'd love a rese
 
 Sigma Sign started as a hackathon project (December 2025) built to make everyday communication more accessible for the deaf and hard-of-hearing community. We're now looking to partner with researchers working on sign language recognition, continuous gesture translation, or accessibility-focused ML.
 
-If any of the open questions above overlap with your research — reach out. *(contact: TODO — add an email or contact form link here)*
-
-## Citation
-
-If you use this project or the accompanying model in academic work, please cite it — a `CITATION.cff` will be added; in the meantime:
-
-```
-Sigma Sign — Russian Sign Language recognition service.
-Built at [hackathon name/date], 2025. TODO: add authors, DOI/URL once available.
-```
-
-## License
-
-TODO — no license file is currently present in this repository. Until one is added, all rights are reserved by default; please reach out before reusing the model or code.
+If any of the open questions above overlap with your research — reach out. *(contact: email: kuznetsova4ka@gmail.com)*
