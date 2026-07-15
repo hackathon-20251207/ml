@@ -1,0 +1,10 @@
+{
+  "model": {
+    "path_to_model": "/Users/macbookvera/Desktop/ИИ/HSE SignLanguage/pleasework/S3D.onnx",
+    "path_to_class_list": "/Users/macbookvera/Desktop/ИИ/HSE SignLanguage/pleasework/RSL_class_list.txt",
+    "provider": "CPUExecutionProvider",
+    "threshold": 0.5,
+    "topk": 1,
+    "clip_len": 32
+  }
+}
