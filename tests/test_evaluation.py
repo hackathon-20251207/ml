@@ -1,6 +1,6 @@
 import argparse
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -12,7 +12,13 @@ from evaluation.evaluate_slovo import (
     score_sample,
     window_frames,
 )
-from evaluation.replay_stack import normalized_api_url, websocket_url
+from evaluation.replay_stack import (
+    EnhancedTranscriptTracker,
+    normalized_api_url,
+    parse_args,
+    websocket_candidate,
+    websocket_url,
+)
 
 
 def candidate(text: str):
@@ -96,6 +102,248 @@ def test_websocket_url_preserves_api_prefix():
     assert websocket_url(base_url) == "wss://hack.eferzo.xyz/api/socket"
 
 
+def test_enhanced_tracker_waits_for_ordered_authoritative_transcript():
+    tracker = EnhancedTranscriptTracker("работать")
+
+    assert (
+        tracker.observe(
+            live_event(
+                "gesture",
+                text="я",
+                final_text="",
+                draft_text="я",
+                literal_text="я",
+                sequence=1,
+                first_sequence=1,
+                last_sequence=1,
+                token_count=1,
+                status="draft",
+            )
+        )
+        is None
+    )
+    assert (
+        tracker.observe(
+            live_event(
+                "gesture",
+                text="работать",
+                final_text="",
+                draft_text="я работать",
+                literal_text="я работать",
+                sequence=2,
+                first_sequence=2,
+                last_sequence=2,
+                token_count=1,
+                status="draft",
+            )
+        )
+        is None
+    )
+    assert (
+        tracker.observe(
+            live_event(
+                "formatting",
+                text="",
+                final_text="",
+                draft_text="я работать",
+                literal_text="я работать",
+                sequence=2,
+                first_sequence=1,
+                last_sequence=2,
+                token_count=2,
+                status="formatting",
+            )
+        )
+        is None
+    )
+
+    # A newer gesture can remain as a draft while the first segment is formatted.
+    assert (
+        tracker.observe(
+            live_event(
+                "gesture",
+                segment_id=2,
+                text="дом",
+                final_text="",
+                draft_text="я работать дом",
+                literal_text="я работать дом",
+                sequence=3,
+                first_sequence=3,
+                last_sequence=3,
+                token_count=1,
+                status="draft",
+            )
+        )
+        is None
+    )
+
+    result = tracker.observe(
+        live_event(
+            "transcript",
+            text="Я работаю.",
+            final_text="Я работаю.",
+            draft_text="дом",
+            literal_text="я работать дом",
+            sequence=2,
+            first_sequence=1,
+            last_sequence=2,
+            token_count=2,
+            status="enhanced",
+            enhanced=True,
+        )
+    )
+
+    assert result == "Я работаю. дом"
+
+
+def test_enhanced_tracker_rejects_transcript_before_formatting():
+    tracker = EnhancedTranscriptTracker("день")
+    tracker.observe(
+        live_event(
+            "gesture",
+            text="день",
+            final_text="",
+            draft_text="день",
+            literal_text="день",
+            sequence=1,
+            first_sequence=1,
+            last_sequence=1,
+            token_count=1,
+            status="draft",
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="before formatting"):
+        tracker.observe(
+            live_event(
+                "transcript",
+                text="День.",
+                final_text="День.",
+                draft_text="",
+                literal_text="день",
+                sequence=1,
+                first_sequence=1,
+                last_sequence=1,
+                token_count=1,
+                status="enhanced",
+                enhanced=True,
+            )
+        )
+
+
+def test_enhanced_tracker_rejects_non_authoritative_full_text():
+    tracker = EnhancedTranscriptTracker("день")
+
+    with pytest.raises(RuntimeError, match="non-authoritative full_text"):
+        tracker.observe(
+            live_event(
+                "gesture",
+                text="день",
+                final_text="",
+                draft_text="день",
+                full_text="другая строка",
+                literal_text="день",
+                sequence=1,
+                first_sequence=1,
+                last_sequence=1,
+                token_count=1,
+                status="draft",
+            )
+        )
+
+
+def test_enhanced_tracker_rejects_non_authoritative_literal_text():
+    tracker = EnhancedTranscriptTracker("день")
+
+    with pytest.raises(RuntimeError, match="non-authoritative literal_text"):
+        tracker.observe(
+            live_event(
+                "gesture",
+                text="день",
+                final_text="",
+                draft_text="день",
+                literal_text="День был отформатирован.",
+                sequence=1,
+                first_sequence=1,
+                last_sequence=1,
+                token_count=1,
+                status="draft",
+            )
+        )
+
+
+def test_enhanced_tracker_rejects_literal_fallback_for_target_segment():
+    tracker = EnhancedTranscriptTracker("день")
+    tracker.observe(
+        live_event(
+            "gesture",
+            text="день",
+            final_text="",
+            draft_text="день",
+            literal_text="день",
+            sequence=1,
+            first_sequence=1,
+            last_sequence=1,
+            token_count=1,
+            status="draft",
+        )
+    )
+    tracker.observe(
+        live_event(
+            "formatting",
+            text="",
+            final_text="",
+            draft_text="день",
+            literal_text="день",
+            sequence=1,
+            first_sequence=1,
+            last_sequence=1,
+            token_count=1,
+            status="formatting",
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="was not enhanced"):
+        tracker.observe(
+            live_event(
+                "transcript",
+                text="день",
+                final_text="день",
+                draft_text="",
+                literal_text="день",
+                sequence=1,
+                first_sequence=1,
+                last_sequence=1,
+                token_count=1,
+                status="literal",
+                enhanced=False,
+            )
+        )
+
+
+def test_legacy_websocket_candidate_still_accepts_raw_gesture():
+    assert websocket_candidate({"type": "gesture", "text": "день"}) == "день"
+
+
+def test_require_enhanced_is_allowed_for_upload_only_mode():
+    video = Path(__file__).parent / "data" / "test.mp4"
+
+    args = parse_args(
+        [
+            "--base-url",
+            "https://hack.eferzo.xyz/api",
+            "--video",
+            str(video),
+            "--mode",
+            "upload",
+            "--require-enhanced",
+        ]
+    )
+
+    assert args.mode == "upload"
+    assert args.require_enhanced
+
+
 @pytest.mark.parametrize(
     "value",
     [
@@ -107,3 +355,30 @@ def test_websocket_url_preserves_api_prefix():
 def test_base_url_rejects_unsafe_or_relative_values(value: str):
     with pytest.raises(argparse.ArgumentTypeError):
         normalized_api_url(value)
+
+
+def live_event(
+    message_type: str,
+    *,
+    segment_id: int = 1,
+    full_text: str | None = None,
+    enhanced: bool | None = None,
+    **fields,
+):
+    payload = {
+        "type": message_type,
+        "segment_id": segment_id,
+        **fields,
+    }
+    payload["full_text"] = (
+        full_text
+        if full_text is not None
+        else " ".join(
+            value.strip()
+            for value in (payload["final_text"], payload["draft_text"])
+            if value.strip()
+        )
+    )
+    if enhanced is not None:
+        payload["enhanced"] = enhanced
+    return payload
