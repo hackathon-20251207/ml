@@ -1,6 +1,6 @@
 # Sigma Sign — ML Service
 
-**Real-time Russian Sign Language (RSL) recognition, powered by a video-transformer model exported to ONNX.**
+**Real-time Russian Sign Language (RSL) recognition, powered by an S3D video classifier exported to ONNX.**
 
 This repository is the ML microservice of **Sigma Sign**, a web application that turns Russian Sign Language into text — either live from a webcam or from an uploaded video — for people who are deaf or hard of hearing. It was built during a 48-hour hackathon and is now looking for research collaborators to push the model, dataset, and grammar-level translation further.
 
@@ -26,10 +26,12 @@ This repository is the ML microservice of **Sigma Sign**, a web application that
   - [Docker](#docker)
 - [Offline / batch inference (`offline_inference/`)](#offline--batch-inference-offline_inference)
 - [Testing](#testing)
+  - [Reproducible model evaluation](#reproducible-model-evaluation)
+  - [Replay against a deployed stack](#replay-against-a-deployed-stack)
 - [Known limitations](#known-limitations)
 - [Roadmap & open research questions](#roadmap--open-research-questions)
 - [Collaborating with us](#collaborating-with-us)
-- [Citation](#citation)
+- [Citation and third-party material](#citation-and-third-party-material)
 - [License](#license)
 
 ---
@@ -87,17 +89,39 @@ sequenceDiagram
 
 ## The model
 
-- **Architecture:** S3D (Separable 3D CNN), exported to ONNX (`s3d.onnx`).
-- **Pretraining:** Kinetics-400 (general video/action recognition).
-- **Fine-tuning:** [Slovo](https://github.com/hukenovs/slovo) — an open Russian Sign Language dataset — covering the ~1,600 gesture classes listed in [`RSL_class_list.txt`](./RSL_class_list.txt).
-- **Why not the Sber baseline ONNX model?** We benchmarked it early on and moved to a fine-tuned S3D checkpoint instead, prioritizing the two things that matter most for a live UX: **inference speed** and **accuracy** on our target vocabulary. Happy to share the comparison notes with anyone digging into the same tradeoff.
-- **Inference strategy:** a sliding window of `NUM_FRAMES` (32 by default) frames is fed to the model per prediction; consecutive duplicate predictions and the `no` (no gesture detected) class are collapsed into a clean final sequence.
+The production model and label mapping are the exact upstream artifacts from
+[ai-forever/easy_sign](https://github.com/ai-forever/easy_sign), not a model
+trained or adapted by this project. Easy Sign describes the model as an
+S3D (Separable 3D CNN) trained on approximately 180,000 gesture examples,
+including approximately 20,000 examples from
+[Slovo](https://github.com/hukenovs/slovo), and capable of recognizing 1,598
+RSL gestures. The mapping contains 1,599 output entries because it also
+contains the `no` class.
+
+Production artifacts are pinned byte-for-byte:
+
+| Artifact | Upstream file | SHA-256 |
+| --- | --- | --- |
+| S3D ONNX model | [`S3D.onnx`](https://github.com/ai-forever/easy_sign/blob/main/S3D.onnx) | `860ecb5e5aff91b4709016c2dc4f5744eea53e024f80c0b3b8f0f916f6bdb949` |
+| Label mapping | [`RSL_class_list.txt`](https://github.com/ai-forever/easy_sign/blob/main/RSL_class_list.txt) | `390e90884aeac96c03ef6db87754ea62cb15b4a5b58f3659a5a900153e97f672` |
+
+Slovo is an important source dataset, but it is not the model's complete
+vocabulary. Slovo contains 20,400 videos, 1,001 classes including the
+no-event class, and 194 signers. Only 785 of its 999 named glosses match the
+production mapping by exact string; spelling and synonym differences account
+for part of the mismatch. It would therefore be incorrect to describe all
+1,599 output labels as “classes from Slovo”. See the
+[Slovo paper](https://arxiv.org/abs/2305.14527) for the dataset protocol.
+
+Each model invocation receives exactly `NUM_FRAMES` frames (32 by default).
+The Go backend, rather than this API, creates overlapping windows, stabilizes
+live predictions, filters rejected/`no` windows, and builds the transcript.
 
 ```mermaid
 graph TD
     V["Input: sequence of frames"] --> W1["Window 1: frames 1-32"]
-    V --> W2["Window 2: frames 9-40"]
-    V --> W3["Window 3: frames 17-48"]
+    V --> W2["Window 2: frames 17-48"]
+    V --> W3["Window 3: frames 33-64"]
     W1 --> M["S3D model (ONNX Runtime)"]
     W2 --> M
     W3 --> M
@@ -106,8 +130,9 @@ graph TD
     D --> R["Final gesture sequence"]
 ```
 
-> **Model performance:** accuracy: 92% and per-window latency on CPU/GPU go here. 
-> **Live demo:** now is not publicly reachable unfortunately.
+The model is evaluated by a small deterministic regression sentinel described
+below. Its result must not be presented as accuracy on all Slovo data, on the
+full Easy Sign vocabulary, or on continuous signing.
 
 ## Repository structure
 
@@ -120,10 +145,15 @@ ml/
 ├── docker-compose.yml
 ├── pytest.ini
 ├── .env.example
-├── RSL_class_list.txt         # id -> gesture label mapping (~1,600 classes)
+├── THIRD_PARTY_NOTICES.md     # Upstream model/data attribution and licenses
+├── evaluation/
+│   ├── slovo_golden.json      # Pinned 20-video Slovo test subset + checksums
+│   ├── evaluate_slovo.py      # Deterministic model regression sentinel
+│   └── replay_stack.py        # Upload/WebSocket replay against a full stack
 ├── tests/
 │   └── data/                  # frame.jpg / sample.mp4 fixtures for integration tests
 └── offline_inference/         # Standalone inference, no API/backend required
+    ├── RSL_class_list.txt      # id -> gesture mapping (1,599 outputs)
     ├── model.py                # Predictor class (loads ONNX model directly, no S3 dependency)
     ├── predict_from_video.py   # CLI: run inference on a local video file end-to-end
     └── configs/
@@ -166,9 +196,11 @@ Response:
 ```
 
 For the `no` class, low confidence, or a small top-1/top-2 margin, the service
-returns `accepted: false` with an empty `text`. Some transition windows can
-still be confident, so the backend additionally confirms a gesture across two
-consecutive windows.
+returns `accepted: false` with an empty `text`. The backend emits the first
+accepted sign immediately, suppresses a held sign until neutral/rejected
+windows release it, and requires confirmation before switching directly to a
+different accepted class. This reduces transition noise without making the
+first translation silent.
 
 Example with `curl` (one static image, repeated — a proper client should send real distinct frames):
 ```bash
@@ -195,9 +227,9 @@ All configuration is via environment variables (see `.env.example`):
 | `AWS_REGION` | — | Region for the S3/R2 client |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | — | Credentials |
 | `S3_ENDPOINT_URL` | — | Custom endpoint for S3-compatible storage (e.g. Cloudflare R2) |
-| `MODEL_KEY` | `mvit32-2.onnx` | Object key of the model in the bucket |
-| `CLASS_LIST_KEY` | `RSL_class_list.txt` | Object key of the class list in the bucket |
-| `MODEL_PATH` | `artifacts/mvit32-2.onnx` | Local path the model is downloaded to / loaded from |
+| `MODEL_KEY` | `mvit32-2.onnx` | Object key of the model in the bucket; production points it at the pinned `S3D.onnx` object (for example `artifacts/S3D.onnx`) |
+| `CLASS_LIST_KEY` | `RSL_class_list.txt` | Object key of the class list; production can use `artifacts/RSL_class_list.txt` |
+| `MODEL_PATH` | `artifacts/mvit32-2.onnx` | Local path the model is downloaded to / loaded from; production uses `artifacts/S3D.onnx` |
 | `CLASS_LIST_PATH` | `artifacts/RSL_class_list.txt` | Local path for the class list |
 | `NUM_FRAMES` | `32` | Frames per inference window |
 | `INPUT_SIZE` | `224` | Frame resize target (square) |
@@ -216,12 +248,24 @@ All configuration is via environment variables (see `.env.example`):
 | `RELOAD` | `false` | Uvicorn autoreload (dev only) |
 | `DEMO_API_URL` | — | Used by local demo/testing tooling |
 
+For the current production artifact set, pin both the S3 object names and
+content checksums (credentials and endpoint omitted):
+
+```dotenv
+MODEL_KEY=artifacts/S3D.onnx
+CLASS_LIST_KEY=artifacts/RSL_class_list.txt
+MODEL_PATH=artifacts/S3D.onnx
+CLASS_LIST_PATH=artifacts/RSL_class_list.txt
+MODEL_SHA256=860ecb5e5aff91b4709016c2dc4f5744eea53e024f80c0b3b8f0f916f6bdb949
+CLASS_LIST_SHA256=390e90884aeac96c03ef6db87754ea62cb15b4a5b58f3659a5a900153e97f672
+```
+
 
 ### Quick start
 
 ```bash
 # 1. Configure
-cp .env.example .env   # fill in S3/R2 credentials and MODEL_KEY=s3d.onnx
+cp .env.example .env   # fill in S3/R2 credentials and the production object keys
 
 # 2. Install (isolated venv)
 python -m venv .venv && source .venv/bin/activate
@@ -277,13 +321,17 @@ python predict_from_video.py
 
 > **Windows note:** on `win32`/`win64`, `model.py` re-encodes the class list from `cp1251` to `utf-8` (a known encoding quirk when the file is read on Windows) and adds OpenVINO execution-provider paths for hardware acceleration. Nothing to configure on Linux/macOS.
 
-**Difference from the production API:** the API (`app.py`) receives pre-decoded frames the Go backend already captured live and uses an overlapping sliding window; `predict_from_video.py` decodes a whole video itself and chunks it sequentially. Same model, two different framing strategies depending on whether you're doing live streaming or one-shot batch analysis.
+**Difference from the production path:** `app.py` processes one already-decoded
+window per request; the Go backend creates overlapping windows for live and
+uploaded video. `predict_from_video.py` decodes a whole video itself and splits
+it into sequential chunks. The model is the same, while the framing strategy
+depends on whether inference is live or one-shot.
 
 ## Testing
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -m integration
+pytest
 ```
 
 Fixtures needed in `tests/data/`:
@@ -292,21 +340,69 @@ Fixtures needed in `tests/data/`:
 
 Tests send (a) 32 copies of `frame.jpg`, and (b) 32 frames evenly sampled from `sample.mp4`/`test.mp4`, and assert both return a non-empty `text` from a running `http://localhost:8085/process`.
 
+### Reproducible model evaluation
+
+The repository contains a fixed 20-video subset of the official Slovo test
+split. The manifest pins video IDs, labels, byte sizes and SHA-256 checksums.
+The evaluator uses HTTP range requests to fetch only these clips from the
+official archive, verifies both upstream model artifacts, creates the same
+32/16 frame windows, and invokes the production model normalization and
+acceptance code. It intentionally bypasses backend ffmpeg/JPEG/HTTP handling;
+the deployed-stack replay below covers that separate boundary.
+
+```bash
+python -m evaluation.evaluate_slovo \
+  --report .cache/model-evaluation/report.json
+```
+
+The recorded baseline for the pinned production artifacts is:
+
+| Regression metric | Result | Required minimum |
+| --- | ---: | ---: |
+| video top-1 | 0.85 | 0.85 |
+| accepted top-1 | 0.85 | 0.85 |
+| expected label in top-3 of any window | 0.95 | 0.95 |
+
+This is deliberately a **regression sentinel**, not a representative model
+benchmark: 20 selected isolated-gesture videos cannot establish general
+accuracy, signer robustness, continuous-signing quality, or coverage of the
+1,599-output vocabulary. The thresholds detect any regression on the pinned
+raw-model sentinel; they are not a product-quality claim.
+
+### Replay against a deployed stack
+
+After downloading the evaluation fixtures, one clip can be replayed through
+both public paths: upload/job polling and paced JPEG frames over WebSocket.
+This checks the frontend-facing backend and ML integration, not just ONNX
+inference:
+
+```bash
+python -m evaluation.replay_stack \
+  --base-url https://hack.eferzo.xyz/api \
+  --video .cache/model-evaluation/slovo-test/251e3c58-90f9-4ef1-8292-250b76a88aaa.mp4 \
+  --mode both \
+  --expected день
+```
+
+Use a target you are authorized to test. The command sends real requests and
+therefore consumes deployment CPU, upload capacity, and any configured
+transcript-cleanup quota.
+
 ## Known limitations
 
 Being upfront about these — they're exactly the kind of thing we'd love a research collaboration to help solve:
 
 - **Isolated gestures, not continuous signing.** The model recognizes one gesture per window; it doesn't yet model the grammar, non-manual markers (facial expression, mouth patterns), or co-articulation of continuous RSL sentences.
-- **Fixed, closed vocabulary.** ~1,600 classes from Slovo — real-world signing (names, neologisms, regional variants) will fall outside this set.
+- **Fixed, closed vocabulary.** The 1,599-output Easy Sign mapping only partly overlaps Slovo; names, neologisms, spelling variants and regional signs can be out of vocabulary or out of distribution.
 - **No confidence calibration across window boundaries** — overlapping windows can each fire independently; there's no temporal smoothing/voting beyond simple de-duplication.
 - **Single signer framing assumptions** — frames are resized to a fixed square without hand/pose-based cropping, so signer distance/position relative to the camera affects accuracy.
-- **Benchmark numbers not yet published** here (see TODO above) — happy to share on request while we finalize an evaluation protocol.
+- **A sentinel is not a benchmark.** The pinned 20-video check protects against regressions but does not measure production accuracy or fairness across signers and recording conditions.
 
 ## Roadmap & open research questions
 
 - Continuous sign language recognition (sentence-level, not isolated gesture-level).
 - Incorporating non-manual markers (facial expression, mouth shape) which carry grammatical meaning in RSL.
-- Expanding vocabulary beyond Slovo's ~1,600 classes with additional data collection.
+- Expanding and documenting the vocabulary with representative, consented data collection.
 - Temporal smoothing / voting across overlapping windows instead of simple de-duplication.
 - On-device / mobile export (quantization, smaller backbone) for lower-latency inference.
 - Formal accuracy/latency benchmarking protocol and public leaderboard.
@@ -316,3 +412,20 @@ Being upfront about these — they're exactly the kind of thing we'd love a rese
 Sigma Sign started as a hackathon project (December 2025) built to make everyday communication more accessible for the deaf and hard-of-hearing community. We're now looking to partner with researchers working on sign language recognition, continuous gesture translation, or accessibility-focused ML.
 
 If any of the open questions above overlap with your research — reach out. *(contact: email: kuznetsova4ka@gmail.com)*
+
+## Citation and third-party material
+
+When publishing results that use these artifacts, cite both
+[Easy Sign](https://github.com/ai-forever/easy_sign) and the
+[Slovo paper](https://arxiv.org/abs/2305.14527). The upstream Easy Sign model,
+label mapping and Slovo dataset are distributed under
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+Attribution and redistribution notes are collected in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+## License
+
+No repository-wide license has yet been declared for Sigma Sign's own source
+code. That does not replace or weaken the licenses of third-party model and
+dataset material; consult [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+before redistributing artifacts or evaluation videos.
