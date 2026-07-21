@@ -42,7 +42,7 @@ clip_len = config["model"]["clip_len"]
 clips = []
 
 for i in range(0, len(frames), clip_len):
-    clip = frames[i:i + clip_len]
+    clip = frames[i : i + clip_len]
     if len(clip) == clip_len:
         clips.append(clip)
 
@@ -58,23 +58,27 @@ all_gestures = []
 for i, clip in enumerate(clips):
     # Конвертируем в numpy массив
     clip_array = np.array(clip)
-    
+
     # Делаем предсказание
     result = predictor.predict(clip_array)
-    
+
     if result is None:
         gesture = "no"
     else:
         # Берем самый вероятный жест (top-1)
-        gesture = result["labels"][0] if isinstance(result["labels"], dict) else result["labels"][0]
-    
+        gesture = (
+            result["labels"][0]
+            if isinstance(result["labels"], dict)
+            else result["labels"][0]
+        )
+
     all_gestures.append(gesture)
-    print(f"  Чанк {i+1}: {gesture}")
+    print(f"  Чанк {i + 1}: {gesture}")
 
 # === 7. Итог (уникальные жесты без повторов) ===
 final_sequence = []
 for g in all_gestures:
-    if g not in ['no', ''] and (not final_sequence or g != final_sequence[-1]):
+    if g not in ["no", ""] and (not final_sequence or g != final_sequence[-1]):
         final_sequence.append(g)
 
 print("\nИтоговая последовательность жестов:")

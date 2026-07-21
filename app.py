@@ -27,7 +27,9 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("sign-api")
 
 
-def env_int(name: str, default: int, minimum: int = 1, maximum: Optional[int] = None) -> int:
+def env_int(
+    name: str, default: int, minimum: int = 1, maximum: Optional[int] = None
+) -> int:
     value = int(os.getenv(name, str(default)))
     if value < minimum:
         raise ValueError(f"{name} must be at least {minimum}")
@@ -36,7 +38,9 @@ def env_int(name: str, default: int, minimum: int = 1, maximum: Optional[int] = 
     return value
 
 
-def env_float(name: str, default: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
+def env_float(
+    name: str, default: float, minimum: float = 0.0, maximum: float = 1.0
+) -> float:
     value = float(os.getenv(name, str(default)))
     if not math.isfinite(value) or not minimum <= value <= maximum:
         raise ValueError(f"{name} must be between {minimum} and {maximum}")
@@ -144,10 +148,14 @@ class RequestBodyLimitMiddleware:
         if content_length is not None:
             try:
                 if int(content_length) > self.max_body_size:
-                    await Response("request body too large", status_code=413)(scope, receive, send)
+                    await Response("request body too large", status_code=413)(
+                        scope, receive, send
+                    )
                     return
             except ValueError:
-                await Response("invalid content-length", status_code=400)(scope, receive, send)
+                await Response("invalid content-length", status_code=400)(
+                    scope, receive, send
+                )
                 return
 
         received = 0
@@ -160,7 +168,9 @@ class RequestBodyLimitMiddleware:
                 continue
             received += len(message.get("body", b""))
             if received > self.max_body_size:
-                await Response("request body too large", status_code=413)(scope, receive, send)
+                await Response("request body too large", status_code=413)(
+                    scope, receive, send
+                )
                 return
             messages.append(message)
             if not message.get("more_body", False):
@@ -193,12 +203,17 @@ def verify_checksum(path: Path, expected: str) -> None:
         raise RuntimeError(f"checksum mismatch for {path.name}")
 
 
-def download_artifact(s3, bucket: str, key: str, target: Path, expected_sha256: str) -> None:
+def download_artifact(
+    s3, bucket: str, key: str, target: Path, expected_sha256: str
+) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     temp_path: Optional[Path] = None
     try:
         with tempfile.NamedTemporaryFile(
-            dir=target.parent, prefix=f".{target.name}.", suffix=".download", delete=False
+            dir=target.parent,
+            prefix=f".{target.name}.",
+            suffix=".download",
+            delete=False,
         ) as temporary:
             temp_path = Path(temporary.name)
         s3.download_file(bucket, key, str(temp_path))
@@ -267,7 +282,9 @@ def ensure_artifacts() -> None:
                 )
                 if checksum or marker_matches:
                     continue
-                log.warning("Cached artifact %s has no matching source marker", target.name)
+                log.warning(
+                    "Cached artifact %s has no matching source marker", target.name
+                )
             except (OSError, UnicodeError, RuntimeError):
                 log.warning("Cached artifact %s failed cache validation", target.name)
         to_download.append((key, target, checksum))
@@ -343,8 +360,14 @@ def validate_model_contract(model, class_names: dict[int, str]) -> tuple[str, in
                 f"model input dimension {index} is {actual}, configured value is {expected}"
             )
 
-    if model_output.shape and isinstance(model_output.shape[0], int) and model_output.shape[0] != 1:
-        raise RuntimeError(f"model output batch dimension is {model_output.shape[0]}, expected 1")
+    if (
+        model_output.shape
+        and isinstance(model_output.shape[0], int)
+        and model_output.shape[0] != 1
+    ):
+        raise RuntimeError(
+            f"model output batch dimension is {model_output.shape[0]}, expected 1"
+        )
 
     output_classes = model_output.shape[-1]
     if isinstance(output_classes, int):
@@ -353,7 +376,9 @@ def validate_model_contract(model, class_names: dict[int, str]) -> tuple[str, in
                 f"model outputs {output_classes} classes, class list contains {len(class_names)}"
             )
         if set(class_names) != set(range(output_classes)):
-            raise RuntimeError("class ids must be contiguous and match model output indexes")
+            raise RuntimeError(
+                "class ids must be contiguous and match model output indexes"
+            )
     return model_input.name, rank
 
 
@@ -395,7 +420,12 @@ def decode_frames_b64(frames_b64: list[str]) -> list[np.ndarray]:
                 with Image.open(BytesIO(raw)) as image:
                     image.load()
                     decoded.append(np.asarray(image.convert("RGB")))
-        except (ValueError, OSError, Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+        except (
+            ValueError,
+            OSError,
+            Image.DecompressionBombError,
+            Image.DecompressionBombWarning,
+        ) as exc:
             raise ValueError(f"frame {index}: invalid image/base64") from exc
     return decoded
 
@@ -425,7 +455,9 @@ def stable_softmax(logits: np.ndarray) -> np.ndarray:
     return exponentials / np.sum(exponentials)
 
 
-def select_prediction(logits: np.ndarray, class_names: dict[int, str]) -> ProcessResponse:
+def select_prediction(
+    logits: np.ndarray, class_names: dict[int, str]
+) -> ProcessResponse:
     probabilities = stable_softmax(logits)
     top_count = min(TOP_K, len(probabilities))
     decision_count = min(max(top_count, 2), len(probabilities))

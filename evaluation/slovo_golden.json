@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "name": "Slovo fixed regression sentinel",
+  "description": "A deterministic, class-balanced smoke subset. It detects regressions; it is not a general accuracy benchmark.",
+  "source": "https://github.com/hukenovs/slovo",
+  "archive_url": "https://rndml-team-cv.obs.ru-moscow-1.hc.sbercloud.ru/datasets/slovo/slovo.zip",
+  "split": "test",
+  "license": "CC-BY-SA-4.0",
+  "thresholds": {
+    "min_top1": 0.85,
+    "min_top3_any_window": 0.95
+  },
+  "samples": [
+    {"id": "251e3c58-90f9-4ef1-8292-250b76a88aaa", "label": "день", "sha256": "7f174676c3cef13a733d14ee4c6218e93fe03300c202436e499efaa089e612be", "bytes": 1026675},
+    {"id": "c4bc79ef-2594-4148-af70-c57e2a8dff85", "label": "дом", "sha256": "7d855cab7aed58ee70356f4ce93c99c1f74957ea41914931f1bf065cf6011272", "bytes": 550030},
+    {"id": "d6d44d8f-b956-44d1-90c5-c904e6c4e4b0", "label": "утро", "sha256": "f2ec537831a9b12763c875ed7fdc3c14a4f984fee26cd27e096d517d40b8c1ab", "bytes": 343975},
+    {"id": "2eb8fc0c-3803-457d-918a-5fd1c9592a84", "label": "я", "sha256": "3b1fe5f07e02eb442bc9710d4e3b87ce56a76297bbb15a589692df6911563bcc", "bytes": 1421601},
+    {"id": "178b7469-8e25-46c7-8024-8803d1a08b96", "label": "ты", "sha256": "a6402ac64ded144517d35f45ded642621efaa2b7fc50e68e0bda1af9f12e27c3", "bytes": 660516},
+    {"id": "29410803-ca90-4dd6-9212-f4eb81ac5603", "label": "кошка", "sha256": "71cbcc0f4566060e5165b0c0a0357a4fbd222f53dfa6892ce82c54d3f920e45f", "bytes": 279959},
+    {"id": "f41bf9eb-effe-4c42-845d-ba8e0e24536d", "label": "собака", "sha256": "cd443bc5feef50500c9089304fe6ca5d40f8990c631ff0d8fb522a784e820ecf", "bytes": 457055},
+    {"id": "9c8de018-bc7a-436a-81f2-480e443be82f", "label": "вода", "sha256": "4311d99f5220cfb841e2781dea334351f4b42ea97b72f3c32608ad31ff0a1534", "bytes": 275578},
+    {"id": "fe17278e-1357-4800-b7b6-084458adb224", "label": "школа", "sha256": "50b15f06bb89f4a47837aa73fb1e47adccc43505335402a9112526f0be56c0d4", "bytes": 656479},
+    {"id": "85b11db0-403b-4138-aef6-8586453b25bb", "label": "человек", "sha256": "b989a1d5d3fe78a376bb9e443fb6e87ee769c32d5fdbac677e2822db94b26287", "bytes": 259276},
+    {"id": "bb55c685-5d4c-4d90-a2e6-57070e3b28cf", "label": "друг", "sha256": "c094ccd2b9569dc7dfd4eee4d44607f510cfa163e1391474e4366488bf2cccbe", "bytes": 259434},
+    {"id": "71bd152c-fec9-4252-9862-5c07cbf73f66", "label": "семья", "sha256": "b2ed0920e3b20e0efd6fc93ee0f911e1993d11abf448105effc075d6b16746ca", "bytes": 497076},
+    {"id": "6c6b6df7-7d56-400e-a74f-fcc8d82a12bb", "label": "любовь", "sha256": "81ccf0b89b224d89b2d310b727a3fdd660d77434c039e90df74b62b34283a11d", "bytes": 535092},
+    {"id": "20e174e3-be76-4aac-80f9-fb00039df958", "label": "книга", "sha256": "b746aea02172007a3b679024d0b8925cf2ba3cee9b520089d38ffaac8d1b8752", "bytes": 717448},
+    {"id": "9cbc0f05-0ef9-4c0e-a149-053793686973", "label": "еда", "sha256": "73a6338237cc00a8bebee9a582c2dbf44e9f8dce4ed9e8f13b5f5bc44c825576", "bytes": 703913},
+    {"id": "6cc8b13a-baad-4d44-909a-ff339b7f853c", "label": "пить", "sha256": "0c6f7fe92c43bc8734ea1112a04734e17379c5ffe3cd47191aaf98a0a2b2a3d1", "bytes": 496672},
+    {"id": "78b0f239-4f6b-428c-a14a-36dbacd8a00b", "label": "работать", "sha256": "a3005a8ab5100089b5989a05e5e04e06b738a6f9d8aecba726209e242558f06b", "bytes": 596169},
+    {"id": "c5b951c0-6b82-4d13-9243-cbb6b2387713", "label": "мир", "sha256": "37618f93558be2dcf51e6cb978ce30f51830c0c438619623ec28d2b048b167da", "bytes": 300963},
+    {"id": "7b9c34e8-a8bd-4f4a-ad2e-05befc12ea1d", "label": "город", "sha256": "e81938d2810899b84daca10d3aca080d3d8f9bf9597c2860daf07abb515d57fd", "bytes": 663041},
+    {"id": "1d360de4-55e3-4946-aee0-e6ee83183bbc", "label": "время", "sha256": "91a05d5a30b8fb04ec18db2596d15909200ca6e0512272da45b4f3e3ac63e325", "bytes": 729722}
+  ]
+}

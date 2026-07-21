@@ -5,6 +5,7 @@ import numpy as np
 
 if platform in {"win32", "win64"}:
     import onnxruntime.tools.add_openvino_win_libs as utils
+
     utils.add_openvino_libs_to_path()
 
 
@@ -35,7 +36,6 @@ class Predictor:
 
             idx_lbl_pairs = [x.split("\t") for x in labels]
             self.labels = {int(x[0]): x[1] for x in idx_lbl_pairs}
-
 
     def softmax(self, x):
         exp_x = np.exp(x - np.max(x, axis=1, keepdims=True))
@@ -89,6 +89,8 @@ class Predictor:
         if platform in {"win32", "win64"}:
             data = [i.encode("cp1251").decode("utf-8") for i in data]
         return data
+
+
 # from sys import platform
 # import onnxruntime as rt
 # from einops import rearrange
@@ -102,7 +104,7 @@ class Predictor:
 #     def __init__(self, model_config):
 #         """
 #         Initialize the Predictor class.
-        
+
 #         Args:
 #             model_config (dict): Model configuration containing path_to_model,
 #                 path_to_class_list, threshold, and topk values.
@@ -134,10 +136,10 @@ class Predictor:
 #     def predict(self, x):
 #         """
 #         Make a prediction using the provided input frames.
-        
+
 #         Args:
 #             x (list): List of input frames.
-            
+
 #         Returns:
 #             dict: Dictionary containing predicted labels and confidence values.
 #         """
@@ -163,10 +165,10 @@ class Predictor:
 #     def model_init(self, path_to_model: str) -> None:
 #         """
 #         Load and init the ONNX model using the provided path.
-        
+
 #         Args:
 #             path_to_model (str): Path to the ONNX model file.
-            
+
 #         Returns:
 #             None
 #         """

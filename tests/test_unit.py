@@ -47,7 +47,9 @@ def test_artifact_source_includes_storage_location(app_module, monkeypatch):
 def test_prediction_accepts_confident_class(app_module, monkeypatch):
     monkeypatch.setattr(app_module, "MIN_CONFIDENCE", 0.5)
     monkeypatch.setattr(app_module, "MIN_MARGIN", 0.1)
-    result = app_module.select_prediction(np.array([5.0, 0.0, -1.0]), {0: "привет", 1: "нет", 2: "да"})
+    result = app_module.select_prediction(
+        np.array([5.0, 0.0, -1.0]), {0: "привет", 1: "нет", 2: "да"}
+    )
     assert result.accepted is True
     assert result.text == "привет"
     assert result.class_id == 0
@@ -57,7 +59,9 @@ def test_prediction_accepts_confident_class(app_module, monkeypatch):
 def test_prediction_rejects_ambiguous_window(app_module, monkeypatch):
     monkeypatch.setattr(app_module, "MIN_CONFIDENCE", 0.2)
     monkeypatch.setattr(app_module, "MIN_MARGIN", 0.1)
-    result = app_module.select_prediction(np.array([1.0, 0.99, -2.0]), {0: "один", 1: "два", 2: "три"})
+    result = app_module.select_prediction(
+        np.array([1.0, 0.99, -2.0]), {0: "один", 1: "два", 2: "три"}
+    )
     assert result.accepted is False
     assert result.text == ""
     assert result.reason == "ambiguous"
@@ -78,7 +82,9 @@ def test_prediction_rejects_no_gesture(app_module, monkeypatch):
     monkeypatch.setattr(app_module, "NO_GESTURE_LABELS", {"no"})
     logits = np.full(15, -5.0)
     logits[14] = 5.0
-    result = app_module.select_prediction(logits, {index: ("no" if index == 14 else str(index)) for index in range(15)})
+    result = app_module.select_prediction(
+        logits, {index: ("no" if index == 14 else str(index)) for index in range(15)}
+    )
     assert result.accepted is False
     assert result.reason == "no_gesture"
     assert result.text == ""
@@ -107,7 +113,9 @@ def test_busy_response_includes_retry_after(app_module, monkeypatch):
             return False
 
     monkeypatch.setattr(app_module, "INFERENCE_SLOT", BusySlot())
-    request = app_module.ProcessRequest(frames=[jpeg_b64()] * app_module.NUM_FRAMES, count=app_module.NUM_FRAMES)
+    request = app_module.ProcessRequest(
+        frames=[jpeg_b64()] * app_module.NUM_FRAMES, count=app_module.NUM_FRAMES
+    )
     with pytest.raises(app_module.HTTPException) as caught:
         app_module.process(request)
     assert caught.value.status_code == 503

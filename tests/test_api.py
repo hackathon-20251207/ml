@@ -36,7 +36,9 @@ def _load_frame_b64() -> str:
 def _load_video_frames_b64(num_frames: int = 32):
     video_path = next((p for p in VIDEO_CANDIDATES if p.exists()), None)
     if not video_path:
-        pytest.skip("Add a sample video at tests/data/sample.mp4 (or test.mp4) to run video test")
+        pytest.skip(
+            "Add a sample video at tests/data/sample.mp4 (or test.mp4) to run video test"
+        )
 
     frames = list(iio.imiter(video_path))
     if not frames:
@@ -72,7 +74,14 @@ def test_process_endpoint_returns_text():
     print(f"API response: status={resp.status_code}, body={resp.text}")
     assert resp.status_code == 200
     data = resp.json()
-    assert {"text", "class_id", "confidence", "candidates", "accepted", "reason"} <= data.keys()
+    assert {
+        "text",
+        "class_id",
+        "confidence",
+        "candidates",
+        "accepted",
+        "reason",
+    } <= data.keys()
     assert isinstance(data["text"], str)
     assert isinstance(data["confidence"], float)
     if data["accepted"]:
