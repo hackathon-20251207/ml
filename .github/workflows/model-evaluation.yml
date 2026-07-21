@@ -1,0 +1,62 @@
+name: Model evaluation
+
+on:
+  pull_request:
+    paths:
+      - app.py
+      - evaluation/**
+      - offline_inference/RSL_class_list.txt
+      - requirements*.txt
+      - .github/workflows/model-evaluation.yml
+  schedule:
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: model-evaluation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  slovo-regression:
+    name: Slovo regression sentinel
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Restore pinned model and video cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/model-evaluation
+          key: model-evaluation-${{ runner.os }}-${{ hashFiles('evaluation/slovo_golden.json', 'evaluation/evaluate_slovo.py', 'offline_inference/RSL_class_list.txt') }}
+
+      - name: Install evaluation dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
+
+      - name: Run fixed Slovo regression sentinel
+        run: >-
+          python -m evaluation.evaluate_slovo
+          --report model-evaluation-report.json
+
+      - name: Upload evaluation report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: model-evaluation-report
+          path: model-evaluation-report.json
+          if-no-files-found: warn
+          retention-days: 30
