@@ -21,7 +21,7 @@ def _skip_if_no_server():
     try:
         resp = requests.get(f"{API_URL}/health", timeout=5)
     except Exception:
-        pytest.skip("API server is not running on localhost:8080")
+        pytest.skip("API server is not running on localhost:8085")
     if resp.status_code != 200:
         pytest.skip(f"Health check failed: {resp.status_code}")
 
@@ -72,9 +72,14 @@ def test_process_endpoint_returns_text():
     print(f"API response: status={resp.status_code}, body={resp.text}")
     assert resp.status_code == 200
     data = resp.json()
-    assert "text" in data
+    assert {"text", "class_id", "confidence", "candidates", "accepted", "reason"} <= data.keys()
     assert isinstance(data["text"], str)
-    assert data["text"].strip() != ""
+    assert isinstance(data["confidence"], float)
+    if data["accepted"]:
+        assert data["text"].strip() != ""
+    else:
+        assert data["text"] == ""
+        assert data["reason"]
 
 
 @pytest.mark.integration
@@ -91,6 +96,9 @@ def test_process_endpoint_with_video():
     print(f"Video API response: status={resp.status_code}, body={resp.text}")
     assert resp.status_code == 200
     data = resp.json()
-    assert "text" in data
+    assert {"text", "confidence", "candidates", "accepted", "reason"} <= data.keys()
     assert isinstance(data["text"], str)
-    assert data["text"].strip() != ""
+    if data["accepted"]:
+        assert data["text"].strip() != ""
+    else:
+        assert data["text"] == ""

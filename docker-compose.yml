@@ -18,8 +18,40 @@ services:
       PORT: ${PORT:-8085}
       RELOAD: ${RELOAD:-false}
       USE_MOCK: ${USE_MOCK:-false}
+      FORCE_DOWNLOAD: ${FORCE_DOWNLOAD:-false}
+      MIN_CONFIDENCE: ${MIN_CONFIDENCE:-0.5}
+      MIN_MARGIN: ${MIN_MARGIN:-0.1}
+      TOP_K: ${TOP_K:-3}
+      NO_GESTURE_LABELS: ${NO_GESTURE_LABELS:-no}
+      NO_GESTURE_IDS: ${NO_GESTURE_IDS:-14}
+      MAX_FRAME_BYTES: ${MAX_FRAME_BYTES:-524288}
+      MAX_IMAGE_SIDE: ${MAX_IMAGE_SIDE:-2048}
+      MAX_IMAGE_PIXELS: ${MAX_IMAGE_PIXELS:-2000000}
+      MAX_REQUEST_BYTES: ${MAX_REQUEST_BYTES:-22374016}
+      INFERENCE_WAIT_SECONDS: ${INFERENCE_WAIT_SECONDS:-0.25}
+      ONNX_THREADS: ${ONNX_THREADS:-2}
+      MODEL_SHA256: ${MODEL_SHA256:-}
+      CLASS_LIST_SHA256: ${CLASS_LIST_SHA256:-}
     ports:
-      - "8085:8085"
+      - "127.0.0.1:8085:8085"
     volumes:
-      - ./artifacts:/app/artifacts
+      - ml-artifacts:/app/artifacts
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,uid=10001,gid=10001,mode=0700
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          memory: 1G
     restart: unless-stopped
+
+volumes:
+  ml-artifacts:

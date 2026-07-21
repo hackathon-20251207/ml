@@ -51,8 +51,8 @@ Sigma Sign has three repositories under this organization:
 
 | Repo | Stack | Role |
 |---|---|---|
-| [`frontend`](https://github.com/hackathon-20251207/frontend) | Vue | Captures webcam frames / video upload, displays translated text |
-| [`backend`](https://github.com/hackathon-20251207/backend) | Go | Session/orchestration layer, forwards frames to this ML service |
+| [`frontend`](https://github.com/HSE-SignLanguage/frontend) | Vue | Captures webcam frames / video upload, displays translated text |
+| [`backend`](https://github.com/HSE-SignLanguage/backend) | Go | Session/orchestration layer, forwards frames to this ML service |
 | **`ml`** (this repo) | Python / FastAPI | Runs model inference, returns recognized gesture text |
 
 ```mermaid
@@ -114,7 +114,8 @@ graph TD
 ```
 ml/
 ├── app.py                     # Production FastAPI service (used by the Go backend)
-├── requirements.txt
+├── requirements.txt          # Runtime dependencies
+├── requirements-dev.txt      # Tests and local integration tools
 ├── Dockerfile
 ├── docker-compose.yml
 ├── pytest.ini
@@ -154,8 +155,20 @@ Request:
 
 Response:
 ```json
-{ "text": "recognized gesture" }
+{
+  "text": "привет",
+  "class_id": 1093,
+  "confidence": 0.96,
+  "candidates": [{"class_id": 1093, "text": "привет", "confidence": 0.96}],
+  "accepted": true,
+  "reason": null
+}
 ```
+
+For the `no` class, low confidence, or a small top-1/top-2 margin, the service
+returns `accepted: false` with an empty `text`. Some transition windows can
+still be confident, so the backend additionally confirms a gesture across two
+consecutive windows.
 
 Example with `curl` (one static image, repeated — a proper client should send real distinct frames):
 ```bash
@@ -167,6 +180,9 @@ curl -X POST http://localhost:8085/process \
 
 Errors:
 - `400` — `count` doesn't match `len(frames)`, or a frame fails to decode.
+- `413` — request body exceeds the configured limit.
+- `422` — the request does not contain exactly `NUM_FRAMES` frames or violates the schema.
+- `503` — the single inference slot is busy; retry later.
 - `500` — unexpected internal error (logged server-side).
 
 ### Configuration
@@ -187,6 +203,15 @@ All configuration is via environment variables (see `.env.example`):
 | `INPUT_SIZE` | `224` | Frame resize target (square) |
 | `USE_MOCK` | `false` | If `true`, skips model loading entirely; `/process` always returns `"(Это МОК)"` — useful for frontend/backend dev without the model |
 | `FORCE_DOWNLOAD` | `false` | Re-download artifacts on startup even if already present locally |
+| `MODEL_SHA256` / `CLASS_LIST_SHA256` | — | Optional SHA-256 checksums for artifact validation |
+| `MIN_CONFIDENCE` / `MIN_MARGIN` | `0.5` / `0.1` | Confidence and top-1/top-2 margin thresholds |
+| `TOP_K` | `3` | Number of diagnostic candidates returned |
+| `NO_GESTURE_LABELS` / `NO_GESTURE_IDS` | `no` / `14` | Labels and ids representing “no gesture” |
+| `MAX_FRAME_BYTES` | `524288` | Maximum decoded frame size |
+| `MAX_IMAGE_SIDE` / `MAX_IMAGE_PIXELS` | `2048` / `2000000` | Image dimension limits |
+| `MAX_REQUEST_BYTES` | derived | Maximum JSON body size, including chunked requests |
+| `INFERENCE_WAIT_SECONDS` | `0.25` | Wait for the single inference slot before `503` |
+| `ONNX_THREADS` | `2` | ONNX Runtime CPU thread count |
 | `HOST` / `PORT` | `0.0.0.0` / `8085` | Uvicorn bind address |
 | `RELOAD` | `false` | Uvicorn autoreload (dev only) |
 | `DEMO_API_URL` | — | Used by local demo/testing tooling |
@@ -200,7 +225,7 @@ cp .env.example .env   # fill in S3/R2 credentials and MODEL_KEY=s3d.onnx
 
 # 2. Install (isolated venv)
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
 # 3. Run
 uvicorn app:app --host 0.0.0.0 --port 8085
@@ -215,7 +240,11 @@ cp .env.example .env   # fill in your variables
 docker compose up --build
 ```
 
-`docker-compose.yml` mounts `./artifacts` into the container, so downloaded model/class-list files persist across restarts.
+`docker-compose.yml` stores the downloaded model and class list in the named
+`ml-artifacts` volume so they persist across restarts.
+In production, use versioned `MODEL_KEY`/`CLASS_LIST_KEY` values and set both
+SHA-256 checksums: replacing an object under the same S3 key cannot otherwise
+be detected from the local cache.
 
 ## Offline / batch inference (`offline_inference/`)
 
@@ -253,7 +282,7 @@ python predict_from_video.py
 ## Testing
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 pytest -m integration
 ```
 

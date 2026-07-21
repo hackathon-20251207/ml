@@ -51,8 +51,8 @@
 
 | Репозиторий | Стек | Роль |
 |---|---|---|
-| [`frontend`](https://github.com/hackathon-20251207/frontend) | Vue | Захват кадров с камеры / загрузка видео, показ переведённого текста |
-| [`backend`](https://github.com/hackathon-20251207/backend) | Go | Слой оркестрации сессий, пересылает кадры в ML-сервис |
+| [`frontend`](https://github.com/HSE-SignLanguage/frontend) | Vue | Захват кадров с камеры / загрузка видео, показ переведённого текста |
+| [`backend`](https://github.com/HSE-SignLanguage/backend) | Go | Слой оркестрации сессий, пересылает кадры в ML-сервис |
 | **`ml`** (этот репозиторий) | Python / FastAPI | Запускает инференс модели, возвращает распознанный жест |
 
 ```mermaid
@@ -114,7 +114,8 @@ graph TD
 ```
 ml/
 ├── app.py                     # Продакшн FastAPI-сервис (используется Go-бэкендом)
-├── requirements.txt
+├── requirements.txt          # Runtime-зависимости
+├── requirements-dev.txt      # Тесты и локальные integration-инструменты
 ├── Dockerfile
 ├── docker-compose.yml
 ├── pytest.ini
@@ -154,8 +155,20 @@ ml/
 
 Ответ:
 ```json
-{ "text": "распознанный жест" }
+{
+  "text": "привет",
+  "class_id": 1093,
+  "confidence": 0.96,
+  "candidates": [{"class_id": 1093, "text": "привет", "confidence": 0.96}],
+  "accepted": true,
+  "reason": null
+}
 ```
+
+Для класса `no`, низкой уверенности или малого отрыва top-1 от top-2 сервис
+возвращает `accepted: false` и пустой `text`. Некоторые переходные окна всё ещё
+могут быть уверенными, поэтому backend дополнительно подтверждает жест по двум
+последовательным окнам.
 
 Пример через `curl` (один статичный кадр, повторённый — в реальности клиент должен слать настоящие разные кадры):
 ```bash
@@ -167,6 +180,9 @@ curl -X POST http://localhost:8085/process \
 
 Ошибки:
 - `400` — `count` не совпадает с `len(frames)`, либо кадр не декодируется.
+- `413` — тело запроса превышает настроенный лимит.
+- `422` — отправлено не ровно `NUM_FRAMES` кадров или нарушена схема.
+- `503` — inference slot занят; запрос можно повторить позже.
 - `500` — непредвиденная внутренняя ошибка (логируется на сервере).
 
 ### Конфигурация
@@ -187,6 +203,15 @@ curl -X POST http://localhost:8085/process \
 | `INPUT_SIZE` | `224` | Целевой размер кадра при ресайзе (квадрат) |
 | `USE_MOCK` | `false` | Если `true` — модель вообще не грузится; `/process` всегда отвечает `"(Это МОК)"` — удобно для разработки фронта/бэка без модели |
 | `FORCE_DOWNLOAD` | `false` | Перекачать артефакты при старте, даже если уже есть локально |
+| `MODEL_SHA256` / `CLASS_LIST_SHA256` | — | Необязательные SHA-256 для проверки артефактов |
+| `MIN_CONFIDENCE` / `MIN_MARGIN` | `0.5` / `0.1` | Порог уверенности и отрыв top-1 от top-2 |
+| `TOP_K` | `3` | Число диагностических кандидатов в ответе |
+| `NO_GESTURE_LABELS` / `NO_GESTURE_IDS` | `no` / `14` | Метки и id класса «нет жеста» |
+| `MAX_FRAME_BYTES` | `524288` | Максимальный декодированный размер кадра |
+| `MAX_IMAGE_SIDE` / `MAX_IMAGE_PIXELS` | `2048` / `2000000` | Ограничения размера изображения |
+| `MAX_REQUEST_BYTES` | вычисляется | Максимальный размер JSON-тела, включая chunked-запросы |
+| `INFERENCE_WAIT_SECONDS` | `0.25` | Ожидание единственного inference slot до ответа `503` |
+| `ONNX_THREADS` | `2` | Число CPU-потоков ONNX Runtime |
 | `HOST` / `PORT` | `0.0.0.0` / `8085` | Адрес привязки Uvicorn |
 | `RELOAD` | `false` | Автоперезагрузка Uvicorn (только для разработки) |
 | `DEMO_API_URL` | — | Используется локальными демо/тестовыми утилитами |
@@ -200,7 +225,7 @@ cp .env.example .env   # заполните S3/R2-учётные данные и
 
 # 2. Установка (изолированно через venv)
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
 # 3. Запуск
 uvicorn app:app --host 0.0.0.0 --port 8085
@@ -214,7 +239,11 @@ cp .env.example .env   # заполните переменные
 docker compose up --build
 ```
 
-`docker-compose.yml` монтирует `./artifacts` внутрь контейнера, поэтому скачанные модель/список классов сохраняются между перезапусками.
+`docker-compose.yml` хранит скачанные модель и список классов в именованном
+томе `ml-artifacts`, поэтому они сохраняются между перезапусками.
+Для production используйте versioned `MODEL_KEY`/`CLASS_LIST_KEY` и заполните
+оба SHA-256: один и тот же ключ S3 без checksum не позволяет обнаружить замену
+объекта на стороне хранилища.
 
 ## Оффлайн / пакетный инференс (`offline_inference/`)
 
@@ -248,7 +277,7 @@ python predict_from_video.py
 ## Тестирование
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 pytest -m integration
 ```
 
