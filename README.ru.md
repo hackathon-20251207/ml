@@ -372,8 +372,17 @@ python -m evaluation.replay_stack \
   --base-url https://hack.eferzo.xyz/api \
   --video .cache/model-evaluation/slovo-test/251e3c58-90f9-4ef1-8292-250b76a88aaa.mp4 \
   --mode both \
-  --expected день
+  --expected день \
+  --require-enhanced
 ```
+
+С флагом `--require-enhanced` WebSocket replay не завершается на первом сыром
+жесте, а дожидается полного упорядоченного сегмента
+`gesture -> formatting -> transcript`. Проверяются ожидаемая исходная метка в
+`literal_text`, итоговый снапшот-источник истины `full_text` и `enhanced: true`
+в финальном событии. Без флага сохраняется прежнее поведение: команда может
+завершиться на первом подходящем сыром жесте. В режиме `--mode upload` флаг ни
+на что не влияет, поскольку WebSocket не открывается.
 
 Запускайте только против системы, которую вы имеете право тестировать. Команда
 посылает реальные запросы, поэтому расходует CPU, upload capacity и лимиты внешнего

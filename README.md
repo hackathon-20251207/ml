@@ -381,8 +381,17 @@ python -m evaluation.replay_stack \
   --base-url https://hack.eferzo.xyz/api \
   --video .cache/model-evaluation/slovo-test/251e3c58-90f9-4ef1-8292-250b76a88aaa.mp4 \
   --mode both \
-  --expected день
+  --expected день \
+  --require-enhanced
 ```
+
+With `--require-enhanced`, the WebSocket replay waits past the immediate raw
+gesture and verifies one complete ordered `gesture -> formatting -> transcript`
+segment. It checks the raw expected label in `literal_text`, the authoritative
+`full_text` snapshot, and requires the final event to have `enhanced: true`.
+Without the flag, the command keeps its backward-compatible behavior and may
+finish on the first matching raw gesture. The flag has no effect in
+`--mode upload`, because that mode does not open a WebSocket.
 
 Use a target you are authorized to test. The command sends real requests and
 therefore consumes deployment CPU, upload capacity, and any configured

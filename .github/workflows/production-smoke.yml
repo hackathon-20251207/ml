@@ -62,3 +62,4 @@ jobs:
           --video .cache/model-evaluation/slovo-test/251e3c58-90f9-4ef1-8292-250b76a88aaa.mp4
           --mode "${SMOKE_MODE}"
           --expected день
+          --require-enhanced
