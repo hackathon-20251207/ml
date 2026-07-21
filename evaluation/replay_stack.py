@@ -309,7 +309,7 @@ async def replay_websocket(
     expected: str | None,
     timeout_seconds: float,
     frames_per_second: float,
-    require_enhanced: bool = False,
+    require_enhanced: bool = True,
 ) -> str:
     transcript = ""
     enhanced_tracker = EnhancedTranscriptTracker(expected) if require_enhanced else None
@@ -377,11 +377,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--fps", type=float, default=24.0)
     parser.add_argument(
-        "--require-enhanced",
+        "--allow-raw-websocket",
         action="store_true",
         help=(
-            "for WebSocket replay, require an ordered gesture -> formatting -> "
-            "enhanced transcript segment; ignored in upload-only mode"
+            "compatibility mode: allow WebSocket replay to pass on a raw gesture "
+            "instead of the default ordered gesture -> formatting -> enhanced "
+            "transcript contract"
         ),
     )
     args = parser.parse_args(argv)
@@ -389,6 +390,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--video must point to a readable file")
     if args.timeout <= 0 or args.fps <= 0 or args.fps > 60:
         parser.error("--timeout and --fps must be positive; --fps cannot exceed 60")
+    if args.mode == "upload" and args.allow_raw_websocket:
+        parser.error("--allow-raw-websocket requires --mode websocket or both")
     return args
 
 
@@ -407,7 +410,7 @@ def main() -> int:
                 args.expected,
                 args.timeout,
                 args.fps,
-                args.require_enhanced,
+                not args.allow_raw_websocket,
             )
         )
         print(f"websocket: {transcript}")
