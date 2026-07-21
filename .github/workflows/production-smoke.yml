@@ -1,6 +1,26 @@
 name: Production video smoke
 
 on:
+  workflow_call:
+    inputs:
+      target_url:
+        description: Explicit backend API base URL (this sends real traffic)
+        required: true
+        type: string
+      mode:
+        description: Path to exercise
+        required: false
+        default: both
+        type: string
+      ml_ref:
+        description: Immutable ML repository revision containing the smoke client
+        required: true
+        type: string
+      settle_seconds:
+        description: Optional deployment settle delay before the replay
+        required: false
+        default: 0
+        type: number
   workflow_dispatch:
     inputs:
       target_url:
@@ -16,6 +36,16 @@ on:
           - both
           - upload
           - websocket
+      ml_ref:
+        description: ML git revision containing the smoke client
+        required: false
+        default: main
+        type: string
+      settle_seconds:
+        description: Optional deployment settle delay before the replay
+        required: false
+        default: 0
+        type: number
 
 permissions:
   contents: read
@@ -35,6 +65,15 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: HSE-SignLanguage/ml
+          ref: ${{ inputs.ml_ref }}
+
+      - name: Wait for the deployment to settle
+        if: ${{ inputs.settle_seconds > 0 }}
+        env:
+          SETTLE_SECONDS: ${{ inputs.settle_seconds }}
+        run: sleep "${SETTLE_SECONDS}"
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -62,4 +101,3 @@ jobs:
           --video .cache/model-evaluation/slovo-test/251e3c58-90f9-4ef1-8292-250b76a88aaa.mp4
           --mode "${SMOKE_MODE}"
           --expected день
-          --require-enhanced

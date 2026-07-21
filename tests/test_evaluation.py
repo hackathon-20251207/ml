@@ -321,11 +321,11 @@ def test_enhanced_tracker_rejects_literal_fallback_for_target_segment():
         )
 
 
-def test_legacy_websocket_candidate_still_accepts_raw_gesture():
+def test_compatibility_websocket_candidate_accepts_raw_gesture():
     assert websocket_candidate({"type": "gesture", "text": "день"}) == "день"
 
 
-def test_require_enhanced_is_allowed_for_upload_only_mode():
+def test_websocket_smoke_requires_enhanced_transcript_by_default():
     video = Path(__file__).parent / "data" / "test.mp4"
 
     args = parse_args(
@@ -335,13 +335,29 @@ def test_require_enhanced_is_allowed_for_upload_only_mode():
             "--video",
             str(video),
             "--mode",
-            "upload",
-            "--require-enhanced",
+            "websocket",
         ]
     )
 
-    assert args.mode == "upload"
-    assert args.require_enhanced
+    assert args.mode == "websocket"
+    assert not args.allow_raw_websocket
+
+
+def test_raw_websocket_compatibility_requires_websocket_mode():
+    video = Path(__file__).parent / "data" / "test.mp4"
+
+    with pytest.raises(SystemExit):
+        parse_args(
+            [
+                "--base-url",
+                "https://hack.eferzo.xyz/api",
+                "--video",
+                str(video),
+                "--mode",
+                "upload",
+                "--allow-raw-websocket",
+            ]
+        )
 
 
 @pytest.mark.parametrize(
